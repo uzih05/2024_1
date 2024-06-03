@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, EmailStr
+import json
 import os
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, EmailStr
 import smtplib
 from email.mime.text import MIMEText
 import socketio
@@ -14,7 +15,11 @@ sio = socketio.AsyncServer(async_mode='asgi')
 socket_app = socketio.ASGIApp(sio, app)
 
 # 사용자 데이터 파일 경로
-USER_DATA_FILE = 'C://Users//luvwl//OneDrive//문서//GitHub//university//Project//data//users.txt'
+USER_DATA_FILE = 'C://Users//luvwl//OneDrive//문서//GitHub//university//Project//data//users.json'
+FRIENDS_DIR = 'C://Users//luvwl//OneDrive//문서//GitHub//university//Project//data//friends'
+
+if not os.path.exists(FRIENDS_DIR):
+    os.makedirs(FRIENDS_DIR)
 
 # Pydantic 모델 정의
 class User(BaseModel):
@@ -34,37 +39,36 @@ class PasswordResetRequest(BaseModel):
     email: EmailStr
 
 class AddFriendRequest(BaseModel):
-    username: str
-    friend: str
+    student_staff_number: str
+    friend_username: str
 
 def save_user(student_staff_number, username, password, email):
-    with open(USER_DATA_FILE, 'a', encoding='utf-8') as file:
-        file.write(f"{student_staff_number},{username},{password},{email}\n")
+    users = load_users()
+    users[student_staff_number] = {
+        'username': username,
+        'password': password,
+        'email': email
+    }
+    with open(USER_DATA_FILE, 'w', encoding='utf-8') as file:
+        json.dump(users, file, ensure_ascii=False, indent=4)
 
 def load_users():
-    users = {}
     if not os.path.exists(USER_DATA_FILE):
-        return users
+        return {}
     with open(USER_DATA_FILE, 'r', encoding='utf-8') as file:
-        for line in file:
-            student_staff_number, username, password, email = line.strip().split(',')
-            users[student_staff_number] = {'username': username, 'password': password, 'email': email, 'friends': []}
-    return users
+        return json.load(file)
 
-def save_all_users(users):
-    with open(USER_DATA_FILE, 'w', encoding='utf-8') as file:
-        for student_staff_number, user in users.items():
-            user_data = f"{student_staff_number},{user['username']},{user['password']},{user['email']}\n"
-            file.write(user_data)
+def load_friends(student_staff_number):
+    friends_file = os.path.join(FRIENDS_DIR, f"{student_staff_number}.txt")
+    if not os.path.exists(friends_file):
+        return []
+    with open(friends_file, 'r', encoding='utf-8') as file:
+        return file.read().splitlines()
 
-@app.post('/login')
-async def login(request: LoginRequest):
-    users = load_users()
-    user = users.get(request.student_staff_number)
-    if user and user['password'] == request.password:
-        return {"status": "success", "message": "로그인 성공!", "username": user['username']}
-    else:
-        raise HTTPException(status_code=400, detail="로그인 실패! 학번/교직원 번호 또는 비밀번호가 잘못되었습니다.")
+def save_friends(student_staff_number, friends):
+    friends_file = os.path.join(FRIENDS_DIR, f"{student_staff_number}.txt")
+    with open(friends_file, 'w', encoding='utf-8') as file:
+        file.write("\n".join(friends))
 
 @app.post('/signup')
 async def signup(request: SignupRequest):
@@ -76,15 +80,38 @@ async def signup(request: SignupRequest):
     save_user(request.student_staff_number, request.username, request.password, request.email)
     return {"status": "success", "message": "회원가입 성공!"}
 
-@app.post('/password_reset')
-async def password_reset(request: PasswordResetRequest):
+@app.post('/login')
+async def login(request: LoginRequest):
     users = load_users()
-    user_info = next((user for user in users.values() if user['email'] == request.email), None)
-    if user_info:
-        send_password_email(request.email, user_info['password'])
-        return {"status": "success", "message": "비밀번호가 이메일로 전송되었습니다."}
+    user = users.get(request.student_staff_number)
+    if user and user['password'] == request.password:
+        return {"status": "success", "message": "로그인 성공!", "username": user['username']}
     else:
-        raise HTTPException(status_code=400, detail="등록되지 않은 이메일입니다.")
+        raise HTTPException(status_code=400, detail="로그인 실패! 학번/교직원 번호 또는 비밀번호가 잘못되었습니다.")
+
+@app.get('/get_friends')
+async def get_friends(student_staff_number: str = Query(..., alias="username")):
+    friends = load_friends(student_staff_number)
+    return {"friends": friends}
+
+@app.post('/add_friend')
+async def add_friend(request: AddFriendRequest):
+    users = load_users()
+    user = users.get(request.student_staff_number)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    friend = next((u for u in users.values() if u['username'] == request.friend_username), None)
+    if not friend:
+        raise HTTPException(status_code=404, detail="Friend not found")
+    
+    friends = load_friends(request.student_staff_number)
+    if request.friend_username in friends:
+        raise HTTPException(status_code=400, detail="Friend already added")
+    
+    friends.append(request.friend_username)
+    save_friends(request.student_staff_number, friends)
+    return {"status": "success", "message": "친구 추가 성공"}
 
 def send_password_email(email: str, password: str):
     smtp_server = "smtp.gmail.com"
@@ -106,38 +133,15 @@ def send_password_email(email: str, password: str):
     except Exception as e:
         print(f"이메일 전송 중 오류 발생: {e}")
 
-@app.get('/check_user')
-async def check_user(username: str):
+@app.post('/password_reset')
+async def password_reset(request: PasswordResetRequest):
     users = load_users()
-    for user in users.values():
-        if user['username'] == username:
-            return {"status": "exists"}
-    return {"status": "not_exists"}
-
-@app.get('/get_friends')
-async def get_friends(username: str):
-    users = load_users()
-    user = users.get(username)
-    if user:
-        friends = user.get('friends', [])
-        return {"friends": friends}
+    user_info = next((user for user in users.values() if user['email'] == request.email), None)
+    if user_info:
+        send_password_email(request.email, user_info['password'])
+        return {"status": "success", "message": "비밀번호가 이메일로 전송되었습니다."}
     else:
-        raise HTTPException(status_code=404, detail="User not found")
-
-@app.post('/add_friend')
-async def add_friend(request: AddFriendRequest):
-    users = load_users()
-    user = next((user for user in users.values() if user['username'] == request.username), None)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    friend = next((user for user in users.values() if user['username'] == request.friend), None)
-    if not friend:
-        raise HTTPException(status_code=404, detail="Friend not found")
-    
-    user['friends'].append(request.friend)
-    save_all_users(users)
-    return {"status": "success", "message": "친구 추가 성공"}
+        raise HTTPException(status_code=400, detail="등록되지 않은 이메일입니다.")
 
 @sio.event
 async def connect(sid, environ):
@@ -149,4 +153,3 @@ async def disconnect(sid):
 
 if __name__ == '__main__':
     uvicorn.run(socket_app, host='0.0.0.0', port=5000)
-#test

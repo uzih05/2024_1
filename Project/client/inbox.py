@@ -1,114 +1,16 @@
 import customtkinter as ctk
-import socketio
 import requests
 
 class Inbox:
-    def __init__(self, username, user_fullname):
-        self.sio = socketio.Client()
+    def __init__(self, parent, username, user_fullname):
+        self.parent = parent
         self.username = username
         self.user_fullname = user_fullname
         self.friends = []
+        self.app_running = True  # 애플리케이션 상태 관리 변수
         self.inbox_window = None
-        self.description_font = ctk.CTkFont(size=15)
-        self.frame = None
-        self.app_running = True
-        self.SERVER_URL = "http://61.255.152.191:5000"
 
-        self.setup_socketio()
-        
-    def setup_socketio(self):
-        self.sio.on('connect', self.on_connect)
-        self.sio.on('connect_error', self.on_connect_error)
-        self.sio.on('disconnect', self.on_disconnect)
-        
-        # 서버와의 연결 시도
-        try:
-            self.sio.connect(self.SERVER_URL)
-        except Exception as e:
-            print(f"서버 연결 중 오류 발생: {e}")
-    
-    def on_connect(self):
-        print("서버에 연결되었습니다.")
-        self.sio.emit("join", {"username": self.username})
-
-    def on_connect_error(self, data):
-        print("서버 연결 실패:", data)
-
-    def on_disconnect(self):
-        print("서버와의 연결이 끊어졌습니다.")
-
-    def on_closing(self):
-        self.app_running = False
-        if self.inbox_window:
-            self.inbox_window.destroy()
-
-    def show_alert(self, message):
-        if self.app_running:
-            try:
-                alert = ctk.CTkToplevel(self.frame)
-                alert.title("경고")
-                alert.geometry("300x150")
-
-                alert_label = ctk.CTkLabel(alert, text=message, font=self.description_font)
-                alert_label.pack(pady=20)
-
-                close_button = ctk.CTkButton(alert, text="닫기", command=alert.destroy)
-                close_button.pack(pady=20)
-
-                alert.transient(self.frame)
-                alert.grab_set()
-                alert.lift()
-                alert.attributes('-topmost', True)
-                alert.resizable(False, False)
-
-                alert.update_idletasks()
-                parent_window = self.frame.winfo_toplevel()
-                window_width = alert.winfo_width()
-                window_height = alert.winfo_height()
-                screen_width = parent_window.winfo_screenwidth()
-                screen_height = parent_window.winfo_screenheight()
-                x = (screen_width // 2) - (window_width // 2)
-                y = (screen_height // 2) - (window_height // 2)
-                alert.geometry(f"{window_width}x{window_height}+{x}+{y}")
-            except Exception as e:
-                print(f"Alert 창을 생성하는 동안 오류 발생: {e}")
-
-    def custom_input_dialog(self, title, prompt):
-        dialog = ctk.CTkToplevel(self.frame)
-        dialog.title(title)
-        dialog.geometry("300x150")
-
-        label = ctk.CTkLabel(dialog, text=prompt, font=self.description_font)
-        label.pack(pady=20)
-
-        entry = ctk.CTkEntry(dialog)
-        entry.pack(pady=5)
-
-        def on_submit():
-            self.input_result = entry.get()
-            dialog.destroy()
-
-        submit_button = ctk.CTkButton(dialog, text="확인", command=on_submit)
-        submit_button.pack(pady=10)
-
-        dialog.transient(self.frame)
-        dialog.grab_set()
-        dialog.lift()
-        dialog.attributes('-topmost', True)
-        dialog.resizable(False, False)
-
-        dialog.update_idletasks()
-        parent_window = self.frame.winfo_toplevel()
-        window_width = dialog.winfo_width()
-        window_height = dialog.winfo_height()
-        screen_width = parent_window.winfo_screenwidth()
-        screen_height = parent_window.winfo_screenheight()
-        x = (screen_width // 2) - (window_width // 2)
-        y = (screen_height // 2) - (window_height // 2)
-        dialog.geometry(f"{window_width}x{window_height}+{x}+{y}")
-
-        dialog.wait_window()
-        return self.input_result
+        self.create_inbox_window()
 
     def create_inbox_window(self):
         ctk.set_appearance_mode("System")
@@ -129,7 +31,6 @@ class Inbox:
         # Main Content
         main_frame = ctk.CTkFrame(self.inbox_window)
         main_frame.pack(expand=True, fill="both", padx=20, pady=20)
-        self.frame = main_frame
 
         # Sidebar
         sidebar_frame = ctk.CTkFrame(main_frame, width=200, fg_color="#f7f7f7")
@@ -164,27 +65,59 @@ class Inbox:
 
         self.inbox_window.mainloop()
 
+    def show_alert(self, message):
+        if self.app_running:
+            try:
+                alert = ctk.CTkToplevel(self.inbox_window)
+                alert.title("경고")
+                alert.geometry("300x150")
+
+                alert_label = ctk.CTkLabel(alert, text=message, font=ctk.CTkFont(size=16, weight="bold"))
+                alert_label.pack(pady=20)
+
+                close_button = ctk.CTkButton(alert, text="닫기", command=alert.destroy)
+                close_button.pack(pady=20)
+
+                alert.transient(self.inbox_window)
+                alert.grab_set()
+                alert.lift()
+                alert.attributes('-topmost', True)
+                alert.resizable(False, False)
+
+                alert.update_idletasks()
+                parent_window = self.inbox_window.winfo_toplevel()
+                window_width = alert.winfo_width()
+                window_height = alert.winfo_height()
+                screen_width = parent_window.winfo_screenwidth()
+                screen_height = parent_window.winfo_screenheight()
+                x = (screen_width // 2) - (window_width // 2)
+                y = (screen_height // 2) - (window_height // 2)
+                alert.geometry(f"{window_width}x{window_height}+{x}+{y}")
+            except Exception as e:
+                print(f"Alert 창을 생성하는 동안 오류 발생: {e}")
+
     def add_friend(self):
         friend_name = self.custom_input_dialog("친구 추가", "친구의 사용자 이름을 입력하세요:")
         if friend_name:
-            response = requests.post(f"{self.SERVER_URL}/add_friend", json={"username": self.username, "friend": friend_name})
+            data = {"student_staff_number": self.username, "friend_username": friend_name}
+            response = requests.post(f"http://61.255.152.191:5000/add_friend", json=data)
             if response.status_code == 200:
                 self.friends.append(friend_name)
                 self.update_friend_list()
             else:
-                self.show_alert("친구 추가에 실패했습니다.")
+                error_detail = response.json().get("detail", "친구 추가에 실패했습니다.")
+                self.show_alert(error_detail)
 
     def send_message(self):
         message = self.message_entry.get()
         if message:
-            if self.sio.connected:
-                self.sio.emit("message", {"username": self.username, "message": message})
-                self.message_entry.delete(0, 'end')
-            else:
-                self.show_alert("서버에 연결되어 있지 않습니다.")
+            # 메시지 전송 로직 추가
+            self.message_entry.delete(0, 'end')
+        else:
+            self.show_alert("메시지를 입력하세요.")
 
     def load_friends(self):
-        response = requests.get(f"{self.SERVER_URL}/get_friends", params={"username": self.username})
+        response = requests.get(f"http://61.255.152.191:5000/get_friends", params={"username": self.username})
         if response.status_code == 200:
             self.friends = response.json().get("friends", [])
             self.update_friend_list()
@@ -192,9 +125,50 @@ class Inbox:
             self.show_alert("친구 목록을 불러오는데 실패했습니다.")
 
     def update_friend_list(self):
-        if self.app_running:
-            self.friend_listbox.configure(state='normal')
-            self.friend_listbox.delete("1.0", "end")
-            for friend in self.friends:
-                self.friend_listbox.insert("end", friend + "\n")
-            self.friend_listbox.configure(state='disabled')
+        self.friend_listbox.configure(state='normal')
+        self.friend_listbox.delete("1.0", "end")
+        for friend in self.friends:
+            self.friend_listbox.insert("end", friend + "\n")
+        self.friend_listbox.configure(state='disabled')
+
+    def custom_input_dialog(self, title, prompt):
+        dialog = ctk.CTkToplevel(self.inbox_window)
+        dialog.title(title)
+        dialog.geometry("300x150")
+
+        label = ctk.CTkLabel(dialog, text=prompt, font=ctk.CTkFont(size=16, weight="bold"))
+        label.pack(pady=20)
+
+        entry = ctk.CTkEntry(dialog)
+        entry.pack(pady=5)
+
+        def on_submit():
+            self.input_result = entry.get()
+            dialog.destroy()
+
+        submit_button = ctk.CTkButton(dialog, text="확인", command=on_submit)
+        submit_button.pack(pady=10)
+
+        dialog.transient(self.inbox_window)
+        dialog.grab_set()
+        dialog.lift()
+        dialog.attributes('-topmost', True)
+        dialog.resizable(False, False)
+
+        dialog.update_idletasks()
+        parent_window = self.inbox_window.winfo_toplevel()
+        window_width = dialog.winfo_width()
+        window_height = dialog.winfo_height()
+        screen_width = parent_window.winfo_screenwidth()
+        screen_height = parent_window.winfo_screenheight()
+        x = (screen_width // 2) - (window_width // 2)
+        y = (screen_height // 2) - (window_height // 2)
+        dialog.geometry(f"{window_width}x{window_height}+{x}+{y}")
+
+        dialog.wait_window()
+        return self.input_result
+
+    def on_closing(self):
+        self.app_running = False
+        if self.inbox_window:
+            self.inbox_window.destroy()
