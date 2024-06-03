@@ -64,13 +64,13 @@ for F in ('login', 'signup', 'password_reset'):
     frames[F] = frame
 
 # 각 페이지 생성 함수 호출
-from login import create_login_frame
-from signup import create_signup_frame
-from password_reset import create_password_reset_frame
+from login import LoginFrame
+from signup import SignupFrame
+from password_reset import PasswordResetFrame
 
-create_login_frame(frames['login'], show_frame)
-create_signup_frame(frames['signup'], show_frame)
-create_password_reset_frame(frames['password_reset'], show_frame)
+LoginFrame(frames['login'], show_frame)
+SignupFrame(frames['signup'], show_frame)
+PasswordResetFrame(frames['password_reset'], show_frame)
 
 # 초기 페이지 설정
 show_frame('login')

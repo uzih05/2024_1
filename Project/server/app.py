@@ -14,7 +14,7 @@ sio = socketio.AsyncServer(async_mode='asgi')
 socket_app = socketio.ASGIApp(sio, app)
 
 # 사용자 데이터 파일 경로
-USER_DATA_FILE = 'Project/data/users.txt'
+USER_DATA_FILE = 'C://Users//luvwl//OneDrive//문서//GitHub//university//Project//data//users.txt'
 
 # Pydantic 모델 정의
 class User(BaseModel):

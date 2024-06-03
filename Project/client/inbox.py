@@ -2,11 +2,11 @@ import customtkinter as ctk
 import socketio
 import requests
 
-class App:
-    def __init__(self):
+class Inbox:
+    def __init__(self, username, user_fullname):
         self.sio = socketio.Client()
-        self.username = None
-        self.user_fullname = None
+        self.username = username
+        self.user_fullname = user_fullname
         self.friends = []
         self.inbox_window = None
         self.description_font = ctk.CTkFont(size=15)
@@ -198,14 +198,3 @@ class App:
             for friend in self.friends:
                 self.friend_listbox.insert("end", friend + "\n")
             self.friend_listbox.configure(state='disabled')
-
-if __name__ == '__main__':
-    app_instance = App()
-    login_response = requests.post(f'{app_instance.SERVER_URL}/login', json={'student_staff_number': 'your_number', 'password': 'your_password'})
-    print(login_response.json())  # 로그인 응답 출력
-    if login_response.json().get("status") == "success":
-        app_instance.username = login_response.json().get("student_staff_number")
-        app_instance.user_fullname = login_response.json().get("username")
-        app_instance.create_inbox_window()
-    else:
-        print("로그인 실패!")
