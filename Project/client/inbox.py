@@ -16,7 +16,7 @@ class Inbox:
         self.sio.on('disconnect', self.on_disconnect)
         self.sio.on('message', self.on_message)
 
-        self.sio.connect('http://localhost:5000')  # 서버 주소로 변경
+        self.sio.connect('http://61.255.152.191:5000')  # 서버 주소로 변경
 
         self.create_inbox_window()
 
