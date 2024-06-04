@@ -99,15 +99,15 @@ async def add_friend(request: AddFriendRequest):
     users = load_users()
     user = users.get(request.student_staff_number)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="조선에 없는 사람입니다.")
     
     friend = next((u for u in users.values() if u['username'] == request.friend_username), None)
     if not friend:
-        raise HTTPException(status_code=404, detail="Friend not found")
+        raise HTTPException(status_code=404, detail="동무를 찾을 수 없습니다.")
     
     friends = load_friends(request.student_staff_number)
     if request.friend_username in friends:
-        raise HTTPException(status_code=400, detail="Friend already added")
+        raise HTTPException(status_code=400, detail="이미 단짝인 동무입니다.")
     
     friends.append(request.friend_username)
     save_friends(request.student_staff_number, friends)
@@ -143,6 +143,9 @@ async def password_reset(request: PasswordResetRequest):
     else:
         raise HTTPException(status_code=400, detail="등록되지 않은 이메일입니다.")
 
+# Socket.IO 이벤트 핸들러 정의
+connected_users = {}
+
 @sio.event
 async def connect(sid, environ):
     print('connect ', sid)
@@ -150,6 +153,24 @@ async def connect(sid, environ):
 @sio.event
 async def disconnect(sid):
     print('disconnect ', sid)
+    username = connected_users.pop(sid, None)
+    if username:
+        print(f"User {username} disconnected")
+
+@sio.event
+async def join(sid, data):
+    username = data['username']
+    connected_users[sid] = username
+    print(f"User {username} joined with sid {sid}")
+
+@sio.event
+async def message(sid, data):
+    to_username = data['to']
+    message = data['message']
+    # 메시지를 받을 사용자의 sid 찾기
+    recipient_sid = next((s for s, u in connected_users.items() if u == to_username), None)
+    if recipient_sid:
+        await sio.emit('message', {'from': connected_users[sid], 'message': message}, to=recipient_sid)
 
 if __name__ == '__main__':
     uvicorn.run(socket_app, host='0.0.0.0', port=5000)

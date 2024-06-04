@@ -1,4 +1,5 @@
 import customtkinter as ctk
+import socketio
 import requests
 
 class Inbox:
@@ -7,29 +8,47 @@ class Inbox:
         self.username = username
         self.user_fullname = user_fullname
         self.friends = []
-        self.app_running = True  # 애플리케이션 상태 관리 변수
-        self.inbox_window = None
+        self.app_running = True
+        self.current_friend = None
+        self.sio = socketio.Client()
+
+        self.sio.on('connect', self.on_connect)
+        self.sio.on('disconnect', self.on_disconnect)
+        self.sio.on('message', self.on_message)
+
+        self.sio.connect('http://localhost:5000')  # 서버 주소로 변경
 
         self.create_inbox_window()
+
+    def on_connect(self):
+        print('Connected to server')
+        self.sio.emit('join', {'username': self.username})
+
+    def on_disconnect(self):
+        print('Disconnected from server')
+
+    def on_message(self, data):
+        sender = data['from']
+        message = data['message']
+        self.show_message(sender, message)
 
     def create_inbox_window(self):
         ctk.set_appearance_mode("System")
         ctk.set_default_color_theme("blue")
 
-        self.inbox_window = ctk.CTk()
-        self.inbox_window.title("메일함 - 전주대학교 메일")
-        self.inbox_window.geometry("800x600")
-        self.inbox_window.protocol("WM_DELETE_WINDOW", self.on_closing)
-        self.inbox_window.resizable(False, False)
+        self.parent.title("메일함 - 전주대학교 메일")
+        self.parent.geometry("800x600")
+        self.parent.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.parent.resizable(False, False)
 
         # Header
-        header_frame = ctk.CTkFrame(self.inbox_window, height=50, fg_color="#78aedd")
+        header_frame = ctk.CTkFrame(self.parent, height=50, fg_color="#78aedd")
         header_frame.pack(side="top", fill="x")
         header_label = ctk.CTkLabel(header_frame, text=f"반갑습니다 {self.user_fullname}!", text_color="white", font=ctk.CTkFont(size=20, weight="bold"))
         header_label.pack(pady=10)
 
         # Main Content
-        main_frame = ctk.CTkFrame(self.inbox_window)
+        main_frame = ctk.CTkFrame(self.parent)
         main_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
         # Sidebar
@@ -39,9 +58,9 @@ class Inbox:
         menu_label = ctk.CTkLabel(sidebar_frame, text="Friends", font=ctk.CTkFont(size=15))
         menu_label.pack(pady=10)
 
-        # Friend List
-        self.friend_listbox = ctk.CTkTextbox(sidebar_frame, state='disabled')
-        self.friend_listbox.pack(expand=True, fill="both", padx=10, pady=10)
+        # Friend List Frame
+        self.friend_list_frame = ctk.CTkFrame(sidebar_frame, fg_color="white")
+        self.friend_list_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
         # Add Friend Button
         add_friend_button = ctk.CTkButton(sidebar_frame, text="친구 추가", command=self.add_friend)
@@ -63,12 +82,10 @@ class Inbox:
 
         self.load_friends()
 
-        self.inbox_window.mainloop()
-
     def show_alert(self, message):
         if self.app_running:
             try:
-                alert = ctk.CTkToplevel(self.inbox_window)
+                alert = ctk.CTkToplevel(self.parent)
                 alert.title("경고")
                 alert.geometry("300x150")
 
@@ -78,14 +95,14 @@ class Inbox:
                 close_button = ctk.CTkButton(alert, text="닫기", command=alert.destroy)
                 close_button.pack(pady=20)
 
-                alert.transient(self.inbox_window)
+                alert.transient(self.parent)
                 alert.grab_set()
                 alert.lift()
                 alert.attributes('-topmost', True)
                 alert.resizable(False, False)
 
                 alert.update_idletasks()
-                parent_window = self.inbox_window.winfo_toplevel()
+                parent_window = self.parent.winfo_toplevel()
                 window_width = alert.winfo_width()
                 window_height = alert.winfo_height()
                 screen_width = parent_window.winfo_screenwidth()
@@ -100,7 +117,7 @@ class Inbox:
         friend_name = self.custom_input_dialog("친구 추가", "친구의 사용자 이름을 입력하세요:")
         if friend_name:
             data = {"student_staff_number": self.username, "friend_username": friend_name}
-            response = requests.post(f"http://61.255.152.191:5000/add_friend", json=data)
+            response = requests.post(f"http://localhost:5000/add_friend", json=data)
             if response.status_code == 200:
                 self.friends.append(friend_name)
                 self.update_friend_list()
@@ -110,14 +127,15 @@ class Inbox:
 
     def send_message(self):
         message = self.message_entry.get()
-        if message:
-            # 메시지 전송 로직 추가
+        if message and self.current_friend:
+            self.sio.emit('message', {'to': self.current_friend, 'message': message})
+            self.show_message(self.username, message)
             self.message_entry.delete(0, 'end')
         else:
-            self.show_alert("메시지를 입력하세요.")
+            self.show_alert("메시지를 입력하세요 또는 친구를 선택하세요.")
 
     def load_friends(self):
-        response = requests.get(f"http://61.255.152.191:5000/get_friends", params={"username": self.username})
+        response = requests.get(f"http://localhost:5000/get_friends", params={"username": self.username})
         if response.status_code == 200:
             self.friends = response.json().get("friends", [])
             self.update_friend_list()
@@ -125,14 +143,15 @@ class Inbox:
             self.show_alert("친구 목록을 불러오는데 실패했습니다.")
 
     def update_friend_list(self):
-        self.friend_listbox.configure(state='normal')
-        self.friend_listbox.delete("1.0", "end")
+        for widget in self.friend_list_frame.winfo_children():
+            widget.destroy()
+
         for friend in self.friends:
-            self.friend_listbox.insert("end", friend + "\n")
-        self.friend_listbox.configure(state='disabled')
+            friend_button = ctk.CTkButton(self.friend_list_frame, text=friend, command=lambda f=friend: self.select_friend(f))
+            friend_button.pack(pady=5, fill="x")
 
     def custom_input_dialog(self, title, prompt):
-        dialog = ctk.CTkToplevel(self.inbox_window)
+        dialog = ctk.CTkToplevel(self.parent)
         dialog.title(title)
         dialog.geometry("300x150")
 
@@ -149,14 +168,14 @@ class Inbox:
         submit_button = ctk.CTkButton(dialog, text="확인", command=on_submit)
         submit_button.pack(pady=10)
 
-        dialog.transient(self.inbox_window)
+        dialog.transient(self.parent)
         dialog.grab_set()
         dialog.lift()
         dialog.attributes('-topmost', True)
         dialog.resizable(False, False)
 
         dialog.update_idletasks()
-        parent_window = self.inbox_window.winfo_toplevel()
+        parent_window = self.parent.winfo_toplevel()
         window_width = dialog.winfo_width()
         window_height = dialog.winfo_height()
         screen_width = parent_window.winfo_screenwidth()
@@ -168,7 +187,20 @@ class Inbox:
         dialog.wait_window()
         return self.input_result
 
+    def show_message(self, sender, message):
+        self.chat_listbox.configure(state='normal')
+        self.chat_listbox.insert("end", f"{sender}: {message}\n")
+        self.chat_listbox.configure(state='disabled')
+
+    def select_friend(self, friend):
+        self.current_friend = friend
+        self.chat_listbox.configure(state='normal')
+        self.chat_listbox.delete("1.0", "end")
+        self.chat_listbox.configure(state='disabled')
+        print(f"Selected friend: {self.current_friend}")
+
     def on_closing(self):
         self.app_running = False
-        if self.inbox_window:
-            self.inbox_window.destroy()
+        self.sio.disconnect()
+        self.parent.quit()
+        self.parent.destroy()
