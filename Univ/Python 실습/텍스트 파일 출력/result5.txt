@@ -1,0 +1,7 @@
+[write() 함수 출력]
+Welcome!
+Pyhon,
+Good bye!
+
+[writelines() 함수 출력]
+희원이형 같이 카페가요.
