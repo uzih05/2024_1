@@ -6,6 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 import socketio
 import uvicorn
+import logging
 
 # FastAPI 애플리케이션 인스턴스 생성
 app = FastAPI()
@@ -17,9 +18,17 @@ socket_app = socketio.ASGIApp(sio, app)
 # 사용자 데이터 파일 경로
 USER_DATA_FILE = 'C://Users//luvwl//OneDrive//문서//GitHub//university//Project//data//users.json'
 FRIENDS_DIR = 'C://Users//luvwl//OneDrive//문서//GitHub//university//Project//data//friends'
+CHAT_HISTORY_DIR = 'C://Users//luvwl//OneDrive//문서//GitHub//university//Project//data//chat_history'
 
 if not os.path.exists(FRIENDS_DIR):
     os.makedirs(FRIENDS_DIR)
+
+if not os.path.exists(CHAT_HISTORY_DIR):
+    os.makedirs(CHAT_HISTORY_DIR)
+
+# 로그 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Pydantic 모델 정의
 class User(BaseModel):
@@ -70,6 +79,18 @@ def save_friends(student_staff_number, friends):
     with open(friends_file, 'w', encoding='utf-8') as file:
         file.write("\n".join(friends))
 
+def save_message(from_student_staff_number, to_student_staff_number, message):
+    chat_file = os.path.join(CHAT_HISTORY_DIR, f"{from_student_staff_number}_to_{to_student_staff_number}.txt")
+    with open(chat_file, 'a', encoding='utf-8') as file:
+        file.write(f"{from_student_staff_number}: {message}\n")
+
+def load_chat_history(from_student_staff_number, to_student_staff_number):
+    chat_file = os.path.join(CHAT_HISTORY_DIR, f"{from_student_staff_number}_to_{to_student_staff_number}.txt")
+    if not os.path.exists(chat_file):
+        return []
+    with open(chat_file, 'r', encoding='utf-8') as file:
+        return file.read().splitlines()
+
 @app.post('/signup')
 async def signup(request: SignupRequest):
     if request.password != request.confirm_password:
@@ -99,15 +120,15 @@ async def add_friend(request: AddFriendRequest):
     users = load_users()
     user = users.get(request.student_staff_number)
     if not user:
-        raise HTTPException(status_code=404, detail="조선에 없는 사람입니다.")
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     
     friend = next((u for u in users.values() if u['username'] == request.friend_username), None)
     if not friend:
-        raise HTTPException(status_code=404, detail="동무를 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="친구를 찾을 수 없습니다.")
     
     friends = load_friends(request.student_staff_number)
     if request.friend_username in friends:
-        raise HTTPException(status_code=400, detail="이미 단짝인 동무입니다.")
+        raise HTTPException(status_code=400, detail="이미 친구로 등록된 사용자입니다.")
     
     friends.append(request.friend_username)
     save_friends(request.student_staff_number, friends)
@@ -143,34 +164,72 @@ async def password_reset(request: PasswordResetRequest):
     else:
         raise HTTPException(status_code=400, detail="등록되지 않은 이메일입니다.")
 
-# Socket.IO 이벤트 핸들러 정의
 connected_users = {}
 
 @sio.event
 async def connect(sid, environ):
-    print('connect ', sid)
+    logger.info(f'connect {sid}')
 
 @sio.event
 async def disconnect(sid):
-    print('disconnect ', sid)
-    username = connected_users.pop(sid, None)
-    if username:
-        print(f"User {username} disconnected")
+    logger.info(f'disconnect {sid}')
+    user_info = connected_users.pop(sid, None)
+    if user_info:
+        logger.info(f"User {user_info['username']} disconnected")
 
 @sio.event
 async def join(sid, data):
-    username = data['username']
-    connected_users[sid] = username
-    print(f"User {username} joined with sid {sid}")
+    username = data.get('username')
+    student_staff_number = data.get('student_staff_number')
+
+    if username is None or student_staff_number is None:
+        await sio.emit('error', {
+            'message': "username 또는 student_staff_number가 없습니다."
+        }, to=sid)
+        return
+
+    connected_users[sid] = {'username': username, 'student_staff_number': student_staff_number}
+    logger.info(f"User {username} joined with sid {sid}")
+    logger.info(f"Current connected users: {connected_users}")
 
 @sio.event
 async def message(sid, data):
-    to_username = data['to']
-    message = data['message']
-    # 메시지를 받을 사용자의 sid 찾기
-    recipient_sid = next((s for s, u in connected_users.items() if u == to_username), None)
-    if recipient_sid:
-        await sio.emit('message', {'from': connected_users[sid], 'message': message}, to=recipient_sid)
+    try:
+        to_username = data['to']
+        message = data['message']
+        from_username = connected_users[sid]['username']
+        from_student_staff_number = connected_users[sid]['student_staff_number']
+        
+        logger.info(f"Received message from {from_username} to {to_username}: {message}")
+        
+        recipient = next((u for s, u in connected_users.items() if u['username'] == to_username), None)
+        if recipient:
+            recipient_sid = next(s for s, u in connected_users.items() if u['username'] == to_username)
+            logger.info(f"Sending message to {recipient_sid}")
+            await sio.emit('message', {
+                'from': {
+                    'username': from_username,
+                    'student_staff_number': from_student_staff_number
+                },
+                'message': message
+            }, to=recipient_sid)
+            save_message(from_student_staff_number, recipient['student_staff_number'], message)
+        else:
+            logger.info(f"Recipient {to_username} not found. Current connected users: {connected_users}")
+    except KeyError as e:
+        logger.error(f"KeyError: {e}. SID: {sid}, Data: {data}")
+
+@app.get('/get_chat_history')
+async def get_chat_history(username: str, friend: str):
+    users = load_users()
+    user = next((u for u in users.values() if u['username'] == username), None)
+    friend_user = next((u for u in users.values() if u['username'] == friend), None)
+    
+    if not user or not friend_user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    
+    chat_history = load_chat_history(user['student_staff_number'], friend_user['student_staff_number'])
+    return {"chat_history": chat_history}
 
 if __name__ == '__main__':
     uvicorn.run(socket_app, host='0.0.0.0', port=5000)
