@@ -6,6 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 import socketio
 import uvicorn
+import logging
 
 # FastAPI 애플리케이션 인스턴스 생성
 app = FastAPI()
@@ -18,6 +19,10 @@ socket_app = socketio.ASGIApp(sio, app)
 USER_DATA_FILE = 'C://Users//luvwl//OneDrive//문서//GitHub//university//Project//data//users.json'
 FRIENDS_DIR = 'C://Users//luvwl//OneDrive//문서//GitHub//university//Project//data//friends'
 CHAT_HISTORY_DIR = 'C://Users//luvwl//OneDrive//문서//GitHub//university//Project//data//chat_history'
+
+# 로그 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 if not os.path.exists(FRIENDS_DIR):
     os.makedirs(FRIENDS_DIR)
