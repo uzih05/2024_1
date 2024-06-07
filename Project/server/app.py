@@ -6,7 +6,6 @@ import smtplib
 from email.mime.text import MIMEText
 import socketio
 import uvicorn
-import logging
 
 # FastAPI 애플리케이션 인스턴스 생성
 app = FastAPI()
@@ -25,10 +24,6 @@ if not os.path.exists(FRIENDS_DIR):
 
 if not os.path.exists(CHAT_HISTORY_DIR):
     os.makedirs(CHAT_HISTORY_DIR)
-
-# 로그 설정
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Pydantic 모델 정의
 class User(BaseModel):
