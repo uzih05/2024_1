@@ -45,17 +45,28 @@ class LoginFrame:
         password_reset_link.pack(side="left", padx=5)
 
     def login(self, event=None):
+        # 로그인 함수 정의, event 매개변수는 기본값이 None으로 설정됨
+        
         data = {
-            'student_staff_number': self.entry_number.get(),
-            'password': self.entry_password.get()
+            'student_staff_number': self.entry_number.get(),  # 입력된 학번 또는 사번을 가져와서 'student_staff_number' 키에 저장
+            'password': self.entry_password.get()  # 입력된 비밀번호를 가져와서 'password' 키에 저장
         }
+        
+        # 서버에 로그인 요청을 보냄, JSON 형식으로 data를 전송
         response = requests.post('http://61.255.152.191:5000/login', json=data)
+        
+        # 서버로부터 받은 응답을 JSON 형식으로 변환하고, 'status' 키의 값을 확인
         if response.json().get("status") == "success":
-            username = data['student_staff_number']
-            user_fullname = response.json().get("username")
+            # 로그인 성공 시
+            username = data['student_staff_number']  # 입력된 학번 또는 사번을 username 변수에 저장
+            user_fullname = response.json().get("username")  # 응답에서 'username' 값을 가져와서 user_fullname 변수에 저장
+            
+            # 로그인 성공 콜백 함수를 호출, 'inbox', username, user_fullname을 인자로 전달
             self.login_success_callback('inbox', username, user_fullname)
         else:
-            self.show_alert("로그인 실패!")
+            # 로그인 실패 시
+            self.show_alert("로그인 실패!")  # 경고 메시지를 표시
+
 
     def show_alert(self, message):
         alert = ctk.CTkToplevel(self.parent)
