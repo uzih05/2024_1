@@ -22,10 +22,11 @@ class LoginFrame:
         self.entry_number = ctk.CTkEntry(self.parent, placeholder_text="학번 또는 교직원 번호", font=self.description_font, width=200)
         self.entry_number.pack(pady=10, padx=10)
 
+        # 비밀번호 입력 필드 생성
         self.entry_password = ctk.CTkEntry(self.parent, placeholder_text="비밀번호", show="*", font=self.description_font, width=200)
         self.entry_password.pack(pady=10, padx=10)
 
-        # 비밀번호 치고 엔터 누르면 로그인
+        # 비밀번호 입력 후 엔터 키를 누르면 로그인
         self.entry_password.bind('<Return>', self.login)
 
         # 로그인 버튼 생성
@@ -45,46 +46,44 @@ class LoginFrame:
         password_reset_link.pack(side="left", padx=5)
 
     def login(self, event=None):
-        # 로그인 함수 정의, event 매개변수는 기본값이 None으로 설정됨
-        
+        # 로그인 요청 데이터 생성
         data = {
-            'student_staff_number': self.entry_number.get(),  # 입력된 학번 또는 사번을 가져와서 'student_staff_number' 키에 저장
-            'password': self.entry_password.get()  # 입력된 비밀번호를 가져와서 'password' 키에 저장
+            'student_staff_number': self.entry_number.get(),
+            'password': self.entry_password.get()
         }
-        
-        # 서버에 로그인 요청을 보냄, JSON 형식으로 data를 전송
+        # 서버로 로그인 요청 전송
         response = requests.post('http://61.255.152.191:5000/login', json=data)
-        
-        # 서버로부터 받은 응답을 JSON 형식으로 변환하고, 'status' 키의 값을 확인
+        # 로그인 성공 시
         if response.json().get("status") == "success":
-            # 로그인 성공 시
-            username = data['student_staff_number']  # 입력된 학번 또는 사번을 username 변수에 저장
-            user_fullname = response.json().get("username")  # 응답에서 'username' 값을 가져와서 user_fullname 변수에 저장
-            
-            # 로그인 성공 콜백 함수를 호출, 'inbox', username, user_fullname을 인자로 전달
+            username = data['student_staff_number']
+            user_fullname = response.json().get("username")
             self.login_success_callback('inbox', username, user_fullname)
         else:
-            # 로그인 실패 시
-            self.show_alert("로그인 실패!")  # 경고 메시지를 표시
-
+            # 로그인 실패 시 경고 메시지 표시
+            self.show_alert("로그인 실패!")
 
     def show_alert(self, message):
+        # 경고 창 생성
         alert = ctk.CTkToplevel(self.parent)
         alert.title("경고")
         alert.geometry("300x150")
 
+        # 경고 메시지 라벨 생성
         alert_label = ctk.CTkLabel(alert, text=message, font=self.description_font)
         alert_label.pack(pady=20)
 
+        # 닫기 버튼 생성
         close_button = ctk.CTkButton(alert, text="닫기", command=alert.destroy)
         close_button.pack(pady=20)
 
+        # 경고 창을 부모 창 위로 표시
         alert.transient(self.parent)
         alert.grab_set()
         alert.lift()
         alert.attributes('-topmost', True)
         alert.resizable(False, False)
 
+        # 경고 창을 화면 중앙에 위치시키기 위한 계산
         alert.update_idletasks()
         parent_window = self.parent.winfo_toplevel()
         window_width = alert.winfo_width()
@@ -102,6 +101,7 @@ if __name__ == '__main__':
     frame = ctk.CTkFrame(root)
     frame.pack(expand=True, fill="both", padx=20, pady=20)
 
+    # 로그인 프레임 생성
     LoginFrame(frame, lambda frame_name: print(f"Switch to {frame_name} frame"))
 
     root.mainloop()

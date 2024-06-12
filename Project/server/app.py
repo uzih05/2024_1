@@ -54,6 +54,7 @@ class AddFriendRequest(BaseModel):
 def save_user(student_staff_number, username, password, email):
     users = load_users()
     users[student_staff_number] = {
+        'student_staff_number': student_staff_number,
         'username': username,
         'password': password,
         'email': email
@@ -91,8 +92,6 @@ def load_chat_history(from_student_staff_number, to_student_staff_number):
     with open(chat_file, 'r', encoding='utf-8') as file:
         return file.read().splitlines()
 
-# 유지헌, 박희원
-
 @app.post('/signup')
 async def signup(request: SignupRequest):
     if request.password != request.confirm_password:
@@ -111,8 +110,6 @@ async def login(request: LoginRequest):
         return {"status": "success", "message": "로그인 성공!", "username": user['username']}
     else:
         raise HTTPException(status_code=400, detail="로그인 실패! 학번/교직원 번호 또는 비밀번호가 잘못되었습니다.")
-
-# 강한니나
 
 @app.get('/get_friends')
 async def get_friends(student_staff_number: str = Query(..., alias="username")):
@@ -137,6 +134,15 @@ async def add_friend(request: AddFriendRequest):
     friends.append(request.friend_username)
     save_friends(request.student_staff_number, friends)
     return {"status": "success", "message": "친구 추가 성공"}
+
+@app.get('/get_student_staff_number')
+async def get_student_staff_number(username: str):
+    users = load_users()
+    user = next((u for u in users.values() if u['username'] == username), None)
+    if user:
+        return {"student_staff_number": user['student_staff_number']}
+    else:
+        raise HTTPException(status_code=404, detail="User not found")
 
 # 최지오
 

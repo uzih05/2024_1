@@ -27,17 +27,19 @@ class SignupFrame:
         self.entry_username = ctk.CTkEntry(self.frame, placeholder_text="사용자 이름", font=self.description_font, width=200)
         self.entry_username.pack(pady=10, padx=60)
 
-        self.entry_password = ctk.CTkEntry(self.frame, placeholder_text="비밀번호         (한영주의!)", show="*", font=self.description_font, width=200)
+        # 비밀번호 입력 필드 생성
+        self.entry_password = ctk.CTkEntry(self.frame, placeholder_text="비밀번호", show="*", font=self.description_font, width=200)
         self.entry_password.pack(pady=10, padx=10)
 
-        self.entry_confirm_password = ctk.CTkEntry(self.frame, placeholder_text="비밀번호 확인 (한영주의!)", show="*", font=self.description_font, width=200)
+        # 비밀번호 확인 입력 필드 생성
+        self.entry_confirm_password = ctk.CTkEntry(self.frame, placeholder_text="비밀번호 확인", show="*", font=self.description_font, width=200)
         self.entry_confirm_password.pack(pady=10, padx=10)
 
         # 이메일 입력 필드 생성
         self.entry_email = ctk.CTkEntry(self.frame, placeholder_text="이메일 주소", font=self.description_font, width=200)
         self.entry_email.pack(pady=10, padx=10)
 
-        # 이메일 치고 엔터 누르면 회원가입 되게
+        # 이메일 입력 후 엔터키를 눌렀을 때 회원가입 함수 호출
         self.entry_email.bind('<Return>', self.signup)
 
         # 회원가입 버튼 생성
@@ -71,6 +73,7 @@ class SignupFrame:
             self.show_alert("학번 또는 교직원 번호는 숫자여야 합니다.")
             return
 
+        # 데이터 딕셔너리 생성
         data = {
             'student_staff_number': self.entry_number.get(),
             'username': self.entry_username.get(),
@@ -80,6 +83,7 @@ class SignupFrame:
         }
 
         try:
+            # 서버에 회원가입 요청
             response = requests.post('http://61.255.152.191:5000/signup', json=data)
             response_data = response.json()
 
@@ -94,6 +98,7 @@ class SignupFrame:
             self.show_alert(f"요청 중 오류가 발생했습니다: {e}")
 
     def show_alert(self, message):
+        # 경고창 생성
         alert = ctk.CTkToplevel(self.frame)
         alert.title("경고")
         alert.geometry("300x150")
