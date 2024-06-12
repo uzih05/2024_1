@@ -11,7 +11,7 @@ import logging
 # FastAPI 애플리케이션 인스턴스 생성
 app = FastAPI()
 
-# Socket.IO 서버 생성 (비동기 모드)
+# Socket.IO 서버 생성
 sio = socketio.AsyncServer(async_mode='asgi')
 socket_app = socketio.ASGIApp(sio, app)
 
@@ -24,14 +24,13 @@ CHAT_HISTORY_DIR = 'C://Users//luvwl//OneDrive//문서//GitHub//university//Proj
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 친구 및 채팅 기록 디렉토리 생성
 if not os.path.exists(FRIENDS_DIR):
     os.makedirs(FRIENDS_DIR)
 
 if not os.path.exists(CHAT_HISTORY_DIR):
     os.makedirs(CHAT_HISTORY_DIR)
 
-# Pydantic 모델 정의 (입력 데이터 검증용)
+# Pydantic 모델 정의
 class User(BaseModel):
     student_staff_number: str
     username: str
@@ -52,7 +51,6 @@ class AddFriendRequest(BaseModel):
     student_staff_number: str
     friend_username: str
 
-# 사용자 데이터를 파일에 저장하는 함수
 def save_user(student_staff_number, username, password, email):
     users = load_users()
     users[student_staff_number] = {
@@ -63,14 +61,12 @@ def save_user(student_staff_number, username, password, email):
     with open(USER_DATA_FILE, 'w', encoding='utf-8') as file:
         json.dump(users, file, ensure_ascii=False, indent=4)
 
-# 사용자 데이터를 파일에서 로드하는 함수
 def load_users():
     if not os.path.exists(USER_DATA_FILE):
         return {}
     with open(USER_DATA_FILE, 'r', encoding='utf-8') as file:
         return json.load(file)
 
-# 친구 목록을 파일에서 로드하는 함수
 def load_friends(student_staff_number):
     friends_file = os.path.join(FRIENDS_DIR, f"{student_staff_number}.txt")
     if not os.path.exists(friends_file):
@@ -78,19 +74,16 @@ def load_friends(student_staff_number):
     with open(friends_file, 'r', encoding='utf-8') as file:
         return file.read().splitlines()
 
-# 친구 목록을 파일에 저장하는 함수
 def save_friends(student_staff_number, friends):
     friends_file = os.path.join(FRIENDS_DIR, f"{student_staff_number}.txt")
     with open(friends_file, 'w', encoding='utf-8') as file:
         file.write("\n".join(friends))
 
-# 채팅 메시지를 파일에 저장하는 함수
 def save_message(from_student_staff_number, to_student_staff_number, message):
     chat_file = os.path.join(CHAT_HISTORY_DIR, f"{from_student_staff_number}_to_{to_student_staff_number}.txt")
     with open(chat_file, 'a', encoding='utf-8') as file:
         file.write(f"{from_student_staff_number}: {message}\n")
 
-# 채팅 기록을 파일에서 로드하는 함수
 def load_chat_history(from_student_staff_number, to_student_staff_number):
     chat_file = os.path.join(CHAT_HISTORY_DIR, f"{from_student_staff_number}_to_{to_student_staff_number}.txt")
     if not os.path.exists(chat_file):
@@ -98,7 +91,8 @@ def load_chat_history(from_student_staff_number, to_student_staff_number):
     with open(chat_file, 'r', encoding='utf-8') as file:
         return file.read().splitlines()
 
-# 회원가입 엔드포인트
+# 유지헌, 박희원
+
 @app.post('/signup')
 async def signup(request: SignupRequest):
     if request.password != request.confirm_password:
@@ -109,7 +103,6 @@ async def signup(request: SignupRequest):
     save_user(request.student_staff_number, request.username, request.password, request.email)
     return {"status": "success", "message": "회원가입 성공!"}
 
-# 로그인 엔드포인트
 @app.post('/login')
 async def login(request: LoginRequest):
     users = load_users()
@@ -119,13 +112,13 @@ async def login(request: LoginRequest):
     else:
         raise HTTPException(status_code=400, detail="로그인 실패! 학번/교직원 번호 또는 비밀번호가 잘못되었습니다.")
 
-# 친구 목록 조회 엔드포인트
+# 강한니나
+
 @app.get('/get_friends')
 async def get_friends(student_staff_number: str = Query(..., alias="username")):
     friends = load_friends(student_staff_number)
     return {"friends": friends}
 
-# 친구 추가 엔드포인트
 @app.post('/add_friend')
 async def add_friend(request: AddFriendRequest):
     users = load_users()
@@ -145,7 +138,8 @@ async def add_friend(request: AddFriendRequest):
     save_friends(request.student_staff_number, friends)
     return {"status": "success", "message": "친구 추가 성공"}
 
-# 비밀번호 재설정 이메일을 보내는 함수
+# 최지오
+
 def send_password_email(email: str, password: str):
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
@@ -166,7 +160,6 @@ def send_password_email(email: str, password: str):
     except Exception as e:
         print(f"이메일 전송 중 오류 발생: {e}")
 
-# 비밀번호 재설정 요청 엔드포인트
 @app.post('/password_reset')
 async def password_reset(request: PasswordResetRequest):
     users = load_users()
@@ -177,15 +170,14 @@ async def password_reset(request: PasswordResetRequest):
     else:
         raise HTTPException(status_code=400, detail="등록되지 않은 이메일입니다.")
 
-# 연결된 사용자 목록 저장소
+# 대화
+
 connected_users = {}
 
-# Socket.IO 이벤트 핸들러: 연결 시
 @sio.event
 async def connect(sid, environ):
     logger.info(f'connect {sid}')
 
-# Socket.IO 이벤트 핸들러: 연결 해제 시
 @sio.event
 async def disconnect(sid):
     logger.info(f'disconnect {sid}')
@@ -193,7 +185,6 @@ async def disconnect(sid):
     if user_info:
         logger.info(f"User {user_info['username']} disconnected")
 
-# Socket.IO 이벤트 핸들러: 사용자 채널 가입
 @sio.event
 async def join(sid, data):
     username = data.get('username')
@@ -209,7 +200,6 @@ async def join(sid, data):
     logger.info(f"User {username} joined with sid {sid}")
     logger.info(f"Current connected users: {connected_users}")
 
-# Socket.IO 이벤트 핸들러: 메시지 전송
 @sio.event
 async def message(sid, data):
     try:
@@ -237,7 +227,6 @@ async def message(sid, data):
     except KeyError as e:
         logger.error(f"KeyError: {e}. SID: {sid}, Data: {data}")
 
-# 채팅 기록 조회 엔드포인트
 @app.get('/get_chat_history')
 async def get_chat_history(username: str, friend: str):
     users = load_users()
@@ -250,6 +239,5 @@ async def get_chat_history(username: str, friend: str):
     chat_history = load_chat_history(user['student_staff_number'], friend_user['student_staff_number'])
     return {"chat_history": chat_history}
 
-# 애플리케이션 실행
 if __name__ == '__main__':
     uvicorn.run(socket_app, host='0.0.0.0', port=5000)
