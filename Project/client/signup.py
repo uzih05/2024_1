@@ -1,3 +1,5 @@
+# 유지헌, 박희원
+
 import customtkinter as ctk
 import requests
 import re

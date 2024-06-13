@@ -1,3 +1,5 @@
+# 강한니나
+
 import customtkinter as ctk
 import socketio
 import requests
@@ -29,14 +31,6 @@ class Inbox:
 
         # 메일함 창 생성
         self.create_inbox_window()
-
-    def on_connect(self):
-        print('Connected to server')
-        # 서버에 사용자 정보 전달
-        self.sio.emit('join', {'username': self.user_fullname, 'student_staff_number': self.username})
-
-    def on_disconnect(self):
-        print('Disconnected from server')
 
     def on_message(self, data):
         sender = data['from']['username']

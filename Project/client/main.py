@@ -1,3 +1,5 @@
+# 유지헌, 박희원, 강한니나
+
 import customtkinter as ctk
 from PIL import Image
 import os

@@ -92,6 +92,8 @@ def load_chat_history(from_student_staff_number, to_student_staff_number):
     with open(chat_file, 'r', encoding='utf-8') as file:
         return file.read().splitlines()
 
+# 유지헌, 박희원
+
 @app.post('/signup')
 async def signup(request: SignupRequest):
     if request.password != request.confirm_password:
@@ -110,6 +112,8 @@ async def login(request: LoginRequest):
         return {"status": "success", "message": "로그인 성공!", "username": user['username']}
     else:
         raise HTTPException(status_code=400, detail="로그인 실패! 학번/교직원 번호 또는 비밀번호가 잘못되었습니다.")
+
+# 강한니나
 
 @app.get('/get_friends')
 async def get_friends(student_staff_number: str = Query(..., alias="username")):
@@ -176,7 +180,7 @@ async def password_reset(request: PasswordResetRequest):
     else:
         raise HTTPException(status_code=400, detail="등록되지 않은 이메일입니다.")
 
-# 대화
+# 대화 - 강한니나
 
 connected_users = {}
 

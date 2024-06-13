@@ -1,3 +1,5 @@
+# 최지오
+
 import customtkinter as ctk
 import requests
 import re
