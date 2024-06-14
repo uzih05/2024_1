@@ -10,7 +10,7 @@ import logging
 
 # FastAPI 애플리케이션 인스턴스 생성
 app = FastAPI()
-
+#
 # Socket.IO 서버 생성
 sio = socketio.AsyncServer(async_mode='asgi')
 socket_app = socketio.ASGIApp(sio, app)
